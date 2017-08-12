@@ -1,0 +1,109 @@
+---
+title: "Clustering of Iris Dataset"
+author: "SRIHARSHA SURINENI"
+date: "April 9, 2017"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+library(arules)
+library(installr)
+library(arulesViz)
+library(fpc)
+library(dplyr)
+library(reshape2)
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## R Markdown
+
+
+```{r cluste analysis}
+set.seed(10574454)
+food <- read.csv('http://homepages.uc.edu/~maifg/DataMining/data/qry_Food_by_Month.csv')
+```
+
+A glimpse of the structure of the data:
+```{r cluster analysis of Food_by_month, echo=FALSE}
+head(food)
+```
+##K-means clustering
+```{r}
+Food<-food[,-c(1,8)]
+Food<-scale(Food)
+wss<-NA
+for (i in 2:20) wss[i] <- sum(kmeans(Food, centers=i)$withinss)
+plot(1:20, wss, type="b", xlab="Number of Clusters",ylab="Within groups sum of squares")
+
+```
+
+   From the above plot, it is evident that 8 is a better choice of k, the number of clusters. Alook at how these clusters are separated:
+```{r}
+fit<-kmeans(Food, 8)
+plotcluster(Food, fit$cluster)
+```
+
+
+
+```{r}
+food$cluster<-fit$cluster
+itemlist<-food[,c("NickName","cluster")]
+itemlist<-itemlist[order(itemlist$cluster),]
+write.csv(itemlist,"./itelist.csv", row.names = FALSE)
+```
+ Here is an example of one of the clusters:
+
+```{r}
+cluster5<-food[food$cluster==1,]
+cluster5
+```
+
+  Mean of the purcases of clusters:
+
+```{r}
+means<-aggregate(food[,-1], by = list(food$cluster), mean)
+means[,-1]
+
+```
+
+##Hierarchical Clustering:
+
+```{r}
+food.dist=dist(Food)
+#Obtain clusters using the Wards method
+food.hclust=hclust(food.dist, method="ward")
+
+plot(food.hclust)
+
+```
+
+  Capping the nuber of clusters to 8:
+  
+```{r}
+food.8clust = cutree(food.hclust,k=8)
+
+#plotcluster(ZooFood, fit$cluster)
+
+plotcluster(Food, food.8clust, main = "Plot of clusters - Hierarchical clustering")
+
+
+```
+
+  Here is a look at one of the clusters:
+
+```{r}
+food$cluster<-food.8clust
+food[food$cluster == 5,]
+food[food$cluster == 4,]
+```
+
+  Hierarchical clustering gives more coherent clusters with items in same clusers varying in same manner in terms of monthly purchases.
+  
+    Mean of the purcases of clusters:
+
+```{r}
+means<-aggregate(food[,-1], by = list(food$cluster), mean)
+means[,-1]
+
+```
+
