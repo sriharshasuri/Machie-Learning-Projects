@@ -1,0 +1,198 @@
+#---
+title: "Anomaly Detection"
+author: "SRIHARSHA SURINENI"
+date: "March 28, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(R.matlab)
+library(ggplot2)
+library(reshape2)
+library(MASS)
+library(purrr)
+library(tidyr)
+library(ggplot2)
+library(corrplot)
+library(nortest)
+library("jpeg")
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+##Anomaly Detection
+
+
+ The objective of this analysis is to implement an anomaly detection algorithm
+to detect anomalous behavior in server computers. The features measure the through-
+put (mb/s), latency (ms) andother parameters of response of each server. While servers
+were operating, 1100 examples of how they were behaving were collected. Initial 1000
+observations are all normal responses and there are 10 anomalies in final 
+100 observations which are used for validation of the model. Gaussian model will be 
+used to detect anomalous observations in the dataset.
+
+## Model:
+    Generally, anomalies are rare occurances and it is very difficult to train
+any supervised macine learning model effeciently as it requires approprite number
+of all the classes. In such scenarios, an alternative method of detecting anomalies
+by estimating joint probability distribution of 
+
+##Exploratory analysis of the features:
+
+```{r cars}
+data1<-readMat('./ex8data2.mat')
+train<-data.frame(data1$X)
+val<-data.frame(data1$Xval)
+yval<-data1$yval
+train %>%
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(value)) +
+    facet_wrap(~ key, scales = "free") + geom_histogram(aes(y = ..density..))+
+    geom_density(colour = 'red', adjust = 2)
+
+par(mfrow = c(1,1))
+boxplot(train, use.cols = TRUE, main = "boxplot of all the features")
+
+
+```
+
+### Train data:
+
+Number of observations in train-data: `r length()
+
+
+  All the eleven features of the dataset look like they follow normal distribution
+from the above plots. Let's have a look at their QQPlots and resuts of tests of normality:
+
+  
+```{r}
+par(mfrow = c(2,2))
+for (i in 1:4){
+  qqnorm(train[,i], main = paste("Normal Q-Q plot of feature ", i, sep = ""))
+}
+
+for (i in 4:8){
+  qqnorm(train[,i], main = paste("Normal Q-Q plot of feature ", i, sep = ""))
+}
+
+for (i in 8:11){
+  qqnorm(train[,i], main = paste("Normal Q-Q plot of feature ", i, sep = ""))
+}
+
+shapirop_value<-numeric(length = 11)
+andersondarlingp_value<-numeric(length = 11)
+for (i in 1:ncol(train)){
+  shapirop_value[i]<-shapiro.test(train[,i])$p.value
+  andersondarlingp_value[i]<-ad.test(train[,i])$p.value
+}
+pvalues<-data.frame(rbind(shapirop_value, andersondarlingp_value), row.names = c("shapiro","adtest"))
+```
+
+p-values of the Shapiro and Anderson_darling tests are as follows:
+```{r}
+pvalues
+
+jj <- readJPEG("multi.jpg",native=TRUE)
+
+
+
+```
+  
+  There is no evidence from these tests as well to suggest any deviance from our assumption of normality of
+the features. So, our basic assumption that the features are derived from normal distribution is valid. Anomaly detection algorithm models the joint probability distributon function as multivariate normal distribution:
+
+```{r}
+#plot(-1:0,-1:0,type="n",ann=FALSE,axes=FALSE)
+#rasterImage(jj,-1,-1,-0.5,-0.5)
+#graphics.off()
+```
+
+
+   
+  Under the modeled probability distribution function, joint probabilities for the observations of validation set are calculated and the threshold value probability to categorize anomalies, is chosen as the value which maximizes the performance criterion (F1- score) of this model on validation set. In this analysis, joint probability distribution has been modeled without any assumption of independence between the features ( although it would have been very costly in terms of computing if we had a very large data set of aroung millions of rows). In case of large data sets, joint distribution can be modeled under assumtion of independence of features.
+    
+```{r}
+x<-data1$X
+mean<-apply(x,2, mean)
+x_mu<- x- mean
+sigma <- (1/999)*(t(x_mu))%*%(x_mu)
+detsigma<-det(sigma)
+sigmainverse<-solve(sigma)
+
+xval<-data1$Xval
+prob_xval<-numeric(length=100)
+c<-(1/((2*3.14)^(11/2)))
+d<-1/(sqrt(detsigma))
+for (i in 1:100){
+xmu<-matrix(xval[i,]-mean)
+prob_xval[i]<-c*d* exp((-1/2)*t(xmu)%*%sigmainverse%*%xmu)
+}
+yval<-data1$yval
+data<-cbind(prob_xval,yval)
+
+```
+
+## Choosing threshold:
+```{r}
+min<- min(prob_xval)
+max<-max(prob_xval)
+pstep<-seq(min, max, by = (max-min)/1000)
+Fscore<-numeric(length =  length(pstep))
+bestfscore<-0
+threshold<-0
+
+for (i in 1:length(pstep)){
+  pred<-as.numeric(prob_xval<pstep[i])
+  tp = sum((pred == 1) & (yval ==1))
+
+  fp = sum((pred == 1) & (yval ==0))
+
+  fn = sum((pred == 0) & (yval ==1))
+
+  prec = tp/(tp+fp)
+
+  rec  = tp/(tp+fn)
+
+  F1 = max(2*prec*rec/(prec+rec), 0, na.rm = TRUE)
+  Fscore[i]<-F1
+  
+  if (F1 > bestfscore){
+    bestfscore = F1
+    threshold = pstep[i]
+  }
+}
+par(mfrow = c(1,1))
+plot(pstep[1:500], Fscore[1:500], xlab = "threshold", ylab = "F1 Score", main = " Choosing threshold value")
+
+pred<-as.numeric(prob_xval<threshold)
+
+```
+
+##Results:
+  From the above analysis, the threshold of joint probabiltiy dstribution function value to categorise an anomaly is `r threshold`.
+  
+#### Misclassifcation table for this threshold for validation set:
+  `r table(pred, yval)`
+  
+#### F1 - score for this threshold: 
+  `r bestfscore`
+
+##Conclusion:
+  This unsupervised machine learning technique is particularly useful, when there are very few anomalies 
+in our data (such as 10 anomalies out of 1000 or 10000 observations), in which case applying other suervised machine learning techniques becomes difficult.
+
+## Disadvantages: 
+    Major disadvantage of this model is it cant properly differentiate between rarely occuring normal cases and anomalies.
+
+Reference:
+ "Machine Learning Coursera Specialization by Mr. Andrew N G"
+
+
+
+                                      ***THE END***
+
+
+
+
+  

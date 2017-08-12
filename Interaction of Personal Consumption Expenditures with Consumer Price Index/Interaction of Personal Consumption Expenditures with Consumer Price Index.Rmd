@@ -1,0 +1,615 @@
+---
+title: Interaction of Personal Consumption Expenditures with Consumer Price Index
+  and Velocity of Money stock through time
+author: "SRIHARSHA SURINENI"
+date: "April 23, 2017"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+library(stringr)
+library(urca)
+library(vars)
+setwd("C:/Users/KP/Desktop/desktop/sem2/time series economerics/time series econmetrics/project")
+knitr::opts_chunk$set(echo = FALSE, warning = 'hide')
+```
+
+```{r}
+intord = function(y){
+#
+# purpose: determine order of integration for variable y.
+# 
+# usage: out = intord(y)
+# This creates time plots, calculates SDs
+#  and performs an ADF unit root test for
+# for level, 1st & 2nd difference of y
+#
+# out contains ADF t-statistics and Mackinnon (2010) critical values.
+#
+# Critical values from:
+# MacKinnon, J.G. (2010) Critical Values for Cointegration Tests.
+# Queen's Economics Department Working Paper No. 1227, Table 2.
+#
+# Jeff Mills, 2011
+#
+
+n = length(y)
+
+dy = diff(y)
+d2y = diff(dy)
+
+z = cbind(y[3:n],dy[2:(n-1)],d2y)
+
+par(mfrow=c(3,2))
+plot(z[,1],col=1,type='l',main=paste("SD=",round(sd(z[,1]),4)),ylab="y", xlab="Level")
+abline(h=mean(z[,1]),col=2)
+acf(y,lwd=3,main="ACF for level")
+plot(z[,2],col=3,type='l',main=paste("SD=",round(sd(z[,2]),4)),ylab=expression(paste(Delta * y)), xlab="1st difference")
+abline(h=mean(z[,2]),col=2)
+acf(z[,2],lwd=3,main="ACF for 1st difference")
+plot(z[,3],col=4,type='l',main=paste("SD=",round(sd(z[,3]),4)),ylab=expression(paste(Delta^2 * y)), xlab="2nd difference")
+abline(h=mean(z[,3]),col=2)
+plot(1:10, xaxt='n', yaxt ='n', col="white", main="ADF test & critical values", ylab="", xlab="")
+
+
+
+# ADF test first round
+
+# pmax is selected max lag length, maxp must be at least 2
+pmax = 12
+maxp = pmax + 1
+
+
+n = length(y)
+dy = diff(y)
+
+
+z = embed(dy,maxp)
+
+zz = embed(y,maxp); y1 = zz[,2]
+xx = cbind(z[,1],y[maxp:(n-1)],z[,2:maxp])
+nobs = nrow(xx)
+# DF test (0 lags)
+c = rep(1,nrow(xx))
+xvars = cbind(c,y[maxp:(n-1)])
+yvar = xx[,1]
+ixx = solve(t(xvars)%*%xvars)
+bh = ixx%*%t(xvars)%*%yvar
+yh = xvars%*%bh
+res = yvar - yh
+rss = t(res)%*%res
+k = ncol(xvars)
+s2 = as.numeric(rss/(nobs-k))
+covb = s2*ixx
+seb = sqrt(diag(covb))
+
+bic = rep(0,maxp)
+adft = bic
+adft[1] = bh[2]/seb[2]
+bic[1] = log(rss/nobs) + log(nobs)*(k+1)/nobs
+
+for (i in 3:(maxp+1)) {
+xvars = cbind(c,xx[,2:i])
+ixx = solve(t(xvars)%*%xvars)
+bh = ixx%*%t(xvars)%*%yvar
+yh = xvars%*%bh
+res = yvar - yh
+rss = t(res)%*%res
+k = ncol(xvars)
+s2 = as.numeric(rss/(nobs-k))
+covb = s2*ixx
+seb = sqrt(diag(covb))
+adft[i-1] = bh[2]/seb[2]
+bic[i-1] = log(rss/nobs) + log(nobs)*(k+1)/nobs
+}
+
+ind = which.min(bic)
+# cat("ADF t-value","lags")
+round1 = c(round(adft[ind],2))
+
+# ADF test second round
+
+y = dy
+
+n = length(y)
+dy = diff(y)
+
+
+z = embed(dy,maxp)
+
+zz = embed(y,maxp); y1 = zz[,2]
+xx = cbind(z[,1],y[maxp:(n-1)],z[,2:maxp])
+nobs = nrow(xx)
+# DF test (0 lags)
+c = rep(1,nrow(xx))
+xvars = cbind(c,y[maxp:(n-1)])
+yvar = xx[,1]
+ixx = solve(t(xvars)%*%xvars)
+bh = ixx%*%t(xvars)%*%yvar
+yh = xvars%*%bh
+res = yvar - yh
+rss = t(res)%*%res
+k = ncol(xvars)
+s2 = as.numeric(rss/(nobs-k))
+covb = s2*ixx
+seb = sqrt(diag(covb))
+
+bic = rep(0,maxp)
+adft = bic
+adft[1] = bh[2]/seb[2]
+bic[1] = log(rss/nobs) + log(nobs)*(k+1)/nobs
+
+for (i in 3:(maxp+1)) {
+xvars = cbind(c,xx[,2:i])
+ixx = solve(t(xvars)%*%xvars)
+bh = ixx%*%t(xvars)%*%yvar
+yh = xvars%*%bh
+res = yvar - yh
+rss = t(res)%*%res
+k = ncol(xvars)
+s2 = as.numeric(rss/(nobs-k))
+covb = s2*ixx
+seb = sqrt(diag(covb))
+adft[i-1] = bh[2]/seb[2]
+bic[i-1] = log(rss/nobs) + log(nobs)*(k+1)/nobs
+}
+bic
+ind = which.min(bic)
+cat("ADF t-value","lags")
+round2 = c(round(adft[ind],2))
+rbind(round1,round2)
+
+ADF.statistics = cbind(round1,round2)
+
+# MacKinnon critical values
+c1 = -3.43035 - 6.5393/nobs - 16.786/nobs^2 - 79.433/nobs^3
+c5 = -2.86154 - 2.8903/nobs - 4.234/nobs^2 - 40.04/nobs^3
+c10 = -2.56677 - 1.5384/nobs - 2.809/nobs^2
+
+# cat("10%, 5% and 1% critical values")
+Critical.values = round(c(c10,c5,c1),2)
+
+
+line1<-expression(paste("   ",y,"           ", Delta * y,"        ","10%       5%	      1%"))
+line2<-paste(ADF.statistics[1],"    ",ADF.statistics[2],"  "
+             ,Critical.values[1],"   ",Critical.values[2],"   ",Critical.values[3])
+
+legend("center","(x,y)", # places a legend at the appropriate place 
+       c(line1,line2), # puts text in the legend 
+       lty=c(1,2), # gives the legend appropriate symbols (lines)       
+       lwd=c(3,2),col=c("white","white"),bty = "n",cex=1.3) # gives the legend lines the correct color and width
+
+ADF.statistics
+Critical.values
+
+
+list(adf.stat = ADF.statistics, critvals = Critical.values)
+
+
+
+}
+seas = function(n,p){
+#
+# Jeff Mills, 2011
+#
+# To use the function, either run it at beginning, or source it,
+# source("C:/Documents and settings/millsjf.BUSINESS/My Documents/Bayes/R programs/my functions/seas.R")
+# i.e. source("pathname/seas.R")
+#
+# purpose: creates seasonal dummy variables of periodicity = p
+# for number of observations = n
+#
+# usage seas = seas(n,p)
+# Example: 
+#      s = seas(193,4)
+#      s1 = s$seas[,1]
+#      s2 = s$seas[,2]
+#      s3 = s$seas[,3]
+#      s4 = s$seas[,4]
+#  creates 4 quarterly seasonal dummies for 193 observations, 
+#  s$seas is a matrix containing these 4 variables
+#
+# arguments p = periodicity (number of periods per year)
+#           n = total number of observations 
+# output: a (nxp) matrix of seasonal dummy variables.
+#
+
+ss = diag(p)
+t = seq(n)
+m = trunc(n/p)
+seas = rep(0,n*p)
+dim(seas) = c(n,p)
+
+for (i in 1:m) {
+stt = (i-1)*p + 1
+fin = i*p
+seas[stt:fin,] = diag(p)
+}
+if ((n/p)-m != 0) {
+mm = n - m*p
+seas[(m*p+1):n,] = ss[1:mm,] }
+
+list(seas=seas)
+}
+
+
+
+```
+
+
+
+
+## Abstarct:
+
+ This analysis is aimed at finding relation between purchasing capabilities of consumer with m2v and Consumer Price Index. 
+ 
+ 
+## Data:
+1) Personal Consumption Expenditures (pce) - Monthly personal consumption expenditures of United States from January 1959 in billions of dollars. pce is scaled by 100.
+
+2) Consumer Price Index (cpi) - The Consumer Price Index (CPI) is a measure of the average change over time in the prices paid by urban consumers for a market basket of consumer goods and services. 
+
+3) Velocity of Money stock (m2v) -  The velocity of money is the frequency at which one unit of currency is used to purchase domestically- produced goods and services within a given time period. In other words, it is the number of times one dollar is spent to buy goods and services per unit of time. If the velocity of money is increasing, then more transactions are occurring between individuals in an economy.
+
+  All the variables are quarterly, stretching through the period of 1959 to 2016. The following analysis and model estimation  is carried out on data till 2012 and the model performance is analysed on the forecasts.
+
+Source: https://fred.stlouisfed.org
+
+
+##Preliinary Analysis of the data:
+
+```{r }
+m2v<-read.csv("M2V.csv")
+pce<-read.csv("PCE.csv")
+cpi<-read.csv("CPI.csv")
+
+pce$year<-as.numeric(substr(pce$DATE, 1,4))
+cpi$year<-as.numeric(substr(cpi$DATE, 1,4))
+m2v$year<-as.numeric(substr(m2v$DATE, 1,4))
+
+
+pce<-pce[pce$year %in% 1959:2016,]
+cpi<-cpi[cpi$year %in% 1959:2016,]
+m2v<-m2v[m2v$year %in% 1959:2016,]
+
+pce1<-pce
+cpi1<-cpi
+m2v1<-m2v
+
+pce<-pce1[,"PCE"]/100
+cpi<-cpi1[,"CPIAUCSL"]/10
+m2v<-m2v1[,2]
+
+matplot(cbind(pce,cpi,m2v), col = c("red","blue","green"), type = 'l', main = "Plot of scaled variables")
+legend("topleft", legend = c("pce","cpi","m2v"), col = c("red","blue","green"), pch = 9)
+
+```
+
+
+
+## 
+
+```{r, results = 'hide', warning = 'hide'}
+intord(pce)
+intord(cpi)
+intord(m2v)
+```
+
+
+  All the evidence (standard deviation, ACF plots and ADF test results of the variable, its first and second differences) from the stationarity analysis of the variables pce, cpi and m2v suggests order of integration of 1. As all the variables are of the same order of integration, it is justified to test for possible cointegration among them.
+  
+  
+## Johansen's Tests for cointegration:
+  
+```{r, results = 'hide', warning = 'hide'}
+##Johansen tests:
+
+a<-pce[1:220]
+b<-cpi[1:220]
+c<-m2v[1:220]
+z<-cbind(a,b,c)
+VARselect(z, lag.max=12, type="const")
+
+summary(ca.jo(z,type="eigen",ecdet="const",K=2))
+summary(ca.jo(z,type="trace",ecdet="const",K=2))
+```
+
+
+ From the BIC slection criteria, it is found that maximm of 3 lags  can be included for cointegartion analysis using Jonsen's approach and seasonality is obvious from the acf plots of the variables (refer appendix) .
+
+
+
+Johansen's test for cointegration:
+
+
+ (pce, cpi, m2v) - Johansen's eigen test result: r = 0  | 79.86 19.77 22.00 26.81
+ (pce, cpi, m2v) - Johansen's trace test result: r = 0  | 106.79 32.00 34.91 41.07
+ There is strong evidence from johansen's test to suggest the three variables as a group are cointegrated at 1% significance level.
+ 
+ 
+## Engle Granger Approach:
+
+```{r}
+
+cointr<-lm(pce~cpi+m2v)
+res<-cointr$resid
+intord(res)
+```
+
+(pce~cpi+m2v) - does not suggest cointegration
+
+```{r}
+cointr<-lm(cpi~pce+m2v)
+res<-cointr$resid
+intord(res)
+```
+
+ (cpi~pce+m2v) - does not suggest cointegration
+ 
+```{r}
+cointr<-lm(m2v~pce+cpi)
+res<-cointr$resid
+intord(res)
+```
+ (m2v~pce+cpi) - does not suggest cointegration
+
+ 
+  Engel-Granger method is not in accordance with Johansen's method (this may be because Johansen's tests include 3 lags of each variable). There is enough evidence from Johansen's tests to account for cointegration. 
+  
+  
+Model 1: Dynamic regression model: Variable of interest - pce. As the variables are I(1), first differences are used to build dynamic regression model.
+
+```{r}
+
+dpce<-diff(pce)
+dcpi<-diff(cpi)
+dm2v<-diff(m2v)
+
+ldpce<-embed(dpce,12)
+ldcpi<-embed(dcpi,12)
+ldm2v<-embed(dm2v,12)
+
+
+tpce<-ldpce[1:208,]
+tcpi<-ldcpi[1:208,]
+tm2v<-ldm2v[1:208,]
+
+n<-length(ldpce[,1])
+s<-seas(n,12)
+s<-s$seas[,1:11]
+t<-1:220
+tt<-1:208
+
+#model1<-lm(tpce[,1]~tpce[,2:12]+tcpi[,1:12]+tm2v[,1:12]+tt)
+#summary(model1)
+
+
+
+model2<-lm(tpce[,1]~tpce[,2:5]+tcpi[,1:5]+tm2v[,1]+tt)
+#summary(model2)
+
+dyn<-model2
+#anova(model2, model1)
+
+#res<-model2$res
+#plot(res)
+
+
+
+#breusch godfrey test
+
+#bgtest(model2,1)
+#bgtest(model2,2)
+#bgtest(model2,3)
+#bgtest(model2,4)
+#bgtest(model2,5)
+#bgtest(model2,6)
+#bgtest(model2,7)
+#bgtest(model2,8)
+#bgtest(model2,9)
+#bgtest(model2,10)
+#bgtest(model2,11)
+#bgtest(model2,12)
+# Box-Ljung Q statistic p-values
+#blt <- rep(0,12)
+#for (i in 1:12) {
+#        b <- bgtest(model2,i)
+#        blt[i] <- b$p.value
+#}
+
+#blt<-data.frame(pvalue = blt)
+#colnames(blt)<-"p-value"
+#blt
+
+
+```
+
+Best dynamic regression model: 
+diff(pce[, 1]) ~ diff(pce[, 2:5]) + diff(cpi[, 1:5]) + diff(tm2v[, 1]) + tt
+
+Summary:
+Residual standard error: 0.2271 on 196 degrees of freedom
+Multiple R-squared:  0.7825,	Adjusted R-squared:  0.7703 
+F-statistic: 64.09 on 11 and 196 DF,  p-value: < 2.2e-16
+
+
+At 10% signficance level there is no evidence to state that the residuals from the model are serial correlated from Breusch-Godfrey test and Box-Ljung test.
+
+
+Model2: VECM model using Engel-Granger and Johansen's approach:
+
+```{r}
+dpce<-diff(pce)
+dcpi<-diff(cpi)
+dm2v<-diff(m2v)
+
+
+dz<-cbind(dpce,dcpi,dm2v)
+
+tdz<-dz[1:219,]
+
+cointr <- lm(pce~cpi+m2v)
+res <- cointr$resid
+
+res = embed(res,2)
+
+# using the Engle-Granger ecm
+var1 <- VAR(tdz, p=3, type="const",exogen=res[1:219,2])
+#summary(var1)
+
+z<-cbind(pce,cpi,m2v)
+tz<-z[1:220,]
+
+#using Johansen's approach:
+jc = summary(ca.jo(z,type="trace",ecdet="const",K=2))
+cointv <- jc@V
+q = length(cointv[,1])
+cointj <- cointv[,1] 
+zm <- as.matrix(z)
+ecmj <- as.numeric(zm%*%cointj[1:(q-1)] + cointj[q])
+
+emcjl<-embed(ecmj,2)
+
+var2<- VAR(tdz, p=2, type="const",exogen=emcjl[1:219,2])
+#summary(var2)
+
+#res1<-var1$varresult$dpce$residuals
+#model2<-var1$varresult$dpce
+
+#res2<-var2$varresult$dpce$residuals
+#model2<-var2$varresult$dpce
+
+```
+
+Engel-Granger approach: 
+dpce = dpce.l1 + dcpi.l1 + dm2v.l1 + dpce.l2 + dcpi.l2 + dm2v.l2 + dpce.l3 + dcpi.l3 + dm2v.l3 + const + exo1 Summary:
+Residual standard error: 0.3219 on 205 degrees of freedom
+Multiple R-Squared: 0.5611,	Adjusted R-squared: 0.5397 
+F-statistic: 26.21 on 10 and 205 DF,  p-value: < 2.2e-16 
+
+Johansen approach:
+dpce = dpce.l1 + dcpi.l1 + dm2v.l1 + dpce.l2 + dcpi.l2 + dm2v.l2 + const + exo1 
+Summary:
+Residual standard error: 0.3164 on 209 degrees of freedom
+Multiple R-Squared:  0.57,	Adjusted R-squared: 0.5556 
+F-statistic: 39.58 on 7 and 209 DF,  p-value: < 2.2e-16 
+
+At 10% signficance level there is no evidence to state that the residuals from the above models are serial correlated from Breusch-Godfrey test and Box-Ljung test.
+
+
+
+
+##Forecasts:
+```{r}
+pce220<-pce[220]
+
+act<-pce[221:232]
+#model2<-lm(tpce[,1]~tpce[,2:5]+tcpi[,1:5]+tm2v[,1]+tt)
+
+coef1<-model2$coefficients
+#coef1
+
+x<-cbind(1,ldpce[209:220,2:5],ldcpi[209:220,1:5],ldm2v[209:220,1],209:220)
+
+dpred1<-as.numeric(x%*%matrix(coef1))
+
+a<-pce220
+pred1<-numeric(length = 12)
+for (i in 1:12){
+  pred1[i]<-dpred1[i]+a
+  a<-pred1[i]
+}
+
+
+rmse1<-sqrt(mean((act[1:4]-pred1[1:4])^2))
+
+
+####var1:
+##dpce = dpce.l1 + dcpi.l1 + dm2v.l1 + dpce.l2 + dcpi.l2 + dm2v.l2 + dpce.l3 + dcpi.l3 + dm2v.l3 + const + exo1
+
+dpred2<-predict(var1,n.ahead = 12, dumvar = matrix(res[220:231,2]) )
+dpred2<-dpred2$fcst$dpce[,1]
+
+dpred3<-predict(var2, n.ahead = 12, dumvar = matrix(emcjl[220:231,2]))
+dpred3<-dpred3$fcst$dpce[,1]
+
+pred2<-numeric(length = 12)
+pred3<-numeric(length = 12)
+
+a<-pce220
+for (i in 1:12){
+  pred2[i]<-dpred2[i]+a
+  a<-pred2[i]
+}
+
+a<-pce220
+for (i in 1:12){
+  pred3[i]<-dpred3[i]+a
+  a<-pred3[i]
+}
+
+matplot(cbind(act,pred1,pred2,pred3), col = c("red","blue","green","black"), type = "l", main = "Forecast of models vs Actual")
+legend("topleft", legend = c("actual","dynamic regression","vecm Engel-Granger approach","vecm Johansen's approach"), col = c("red","blue","green","black"), pch = 1)
+
+
+rmse2<-sqrt(mean((act-pred2)^2))
+rmse3<-sqrt(mean((act-pred3)^2))
+
+k1<-1/rmse1
+k3<-1/rmse3
+
+k<-k1+k3
+
+ensemblepred<-((k1/k)*pred1)+((k3/k)*pred3)
+rmse<-sqrt(mean((act-ensemblepred)^2))
+
+matplot(cbind(act,pred1, pred3, ensemblepred), col = c("red","blue","green","black"), type = "l")
+legend("topleft", legend = c("act", "dynr", "vecm-johansen's","combined forecast"), col = c("red","blue","green","black"), pch = 1)
+
+
+```
+
+
+
+
+##Impulse response function:
+
+```{r, warning=FALSE}
+
+par(mfrow = c(1,2))
+irf1 <- irf(var2, impulse = "dcpi", response = "dpce", boot = T,exogen=emcjl[,2])
+irf2 <- irf(var2, impulse = "dm2v", response = "dpce", boot = T,season=12,exogen=emcjl[,2])
+plot(irf1)
+plot(irf2)
+
+```
+
+.	Shock in Consumer Price Index results in a sudden decrease in Personal Consumption Expenditures, which is quite intuitive
+
+
+
+###Conclusion:
+
+.	The variables under consideration are all non-stationary with the order of integration of one (I(1))
+
+.	There is a strong evidence for cointegration among the variables from Johansen's tests, but there is no such evidence from Engle - Granger approach
+
+.	Dynamic regression model with time trend performed as better as one of the VECM models
+
+.	VECM model with error correction term from Engel - Granger approach, performed worse than the other two models
+
+.	VECM model with error correction term from Johansen's approach performed best among the three models
+
+.	Combined forecast  of the two better performing models in the ratio of reciprocals of their rmse performed even better
+
+.	From IRF plot corresponding to the Johansen's VECM model, an impulse in Consumer Price Index results in a negative response from Personal Consumption Expenditures, which dies out very slowly
+
+
+
+
+
+
+
+                     ****************************************************************

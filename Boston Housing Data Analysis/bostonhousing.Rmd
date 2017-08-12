@@ -1,0 +1,250 @@
+---
+title: "Data Mining 2 - Individual Case - 1"
+author: "SRIHARSHA SURINENI"
+date: "March 20, 2017"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+library(MASS)
+library(purrr)
+library(tidyr)
+library(ggplot2)
+library(corrplot)
+library(rpart)
+library(mgcv)
+library(nnet)
+
+knitr::opts_chunk$set(echo = FALSE)
+```
+##Random sample a training data set that contains 75% of original data points. 
+## Fit a (generalized) linear regression, tree, generalized additive models, and 
+## neural network. Write a brief report up to eight pages including all labeled figures
+## and tables. Compare different model performance based on fits of the training data 
+## (in-sample). Test the out-of-sample performance. Using final model built from the 25%
+## of original data, test with the remaining 25% testing data. Compare the model fits.
+
+## Boston Housing data:
+  The following anaysis is carried out on popular data set from the "MASS" library - "Boston Housing Data",
+comprising of various metrics likely affecting the housing prices of a region like percapita crime rate, 
+average number of rooms, nitrogen oxides concentration etc., and the median value of owner - occupied homes in thousands of dollars. The major objective of this analysis is try to model the affects of these factors on the median of house prices using different techniques like generalized linear regresson, tree, generalized additive mdels and neural network and compare their in sample and test sample performances.
+
+##Methodology:
+  * Summary and exploratory analysis of the data
+  * Random sample the data - 75% train and 25% test sets
+  * Modeling of the data using above mentioned techniques
+  * Comparision of their performance
+  * Conclusion
+
+##Exploratory analysis of the data:
+```{r loading data summarizing and random sampling of data, echo = FALSE}
+data(Boston)
+n<-length(Boston[,1])
+set.seed(10574454)
+trainsample<-sample(1:n,0.7*n)
+
+train<-Boston[trainsample,]
+test<-Boston[-trainsample,]
+insamplemse<-list()
+testmse<-list()
+
+summary(Boston)
+
+corrplot(cor(Boston), method = 'number')
+
+Boston %>%
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(value)) +
+    facet_wrap(~ key, scales = "free") + geom_histogram(aes(y = ..density..))+
+    geom_density(colour = 'red', adjust = 4) 
+
+```
+
+  There are no missing values in the data. Response variable is clearly correlated with most of the predicor variables, especially 'lstat', 'rm', 'ptrratio'. There is not much variation in some of the variables such as 
+black, crim, zn etc., chas is a factor variable. 
+
+##Generalised Linear Model:
+```{r glm model, results='hide'}
+
+bostonglm<-glm(data = train, formula = medv~.)
+bostonglm<-stepAIC(bostonglm, direction = 'both')
+
+```
+```{r}
+bostonmse<-mean((predict(bostonglm)-train$medv)^2)
+insamplemse$glm<-bostonmse
+testmse$glm<-mean((predict(bostonglm, test)- test$medv)^2)
+
+
+par(mfrow=c(2,2))
+plot(bostonglm)
+par(mfrow = c(1,1))
+
+```
+  
+  There is an obvious trend in the residual vs fitted value plot.   Transforming response variable might help
+
+  
+##Tree:
+```{r tree model}
+bostontree <- rpart(formula = medv ~ ., data = train, cp = 0.0001)
+par(mfrow = c(2,2))
+plot(bostontree, main = 'Initial large tree')
+plotcp(bostontree)
+pruned=prune(bostontree, cp = 0.0077)
+plot(pruned, main = ' tree pruned at cp = 0.0077')
+par(mfrow = c(1,1))
+bostontreemse<-mean((predict(bostontree) - train$medv)^2)
+prunedtreemse<-mean((predict(pruned) - train$medv)^2)
+
+bostontreetestmse<-mean((predict(bostontree, test) - test$medv)^2)
+prunedtreetestmse<-mean((predict(pruned, test) - test$medv)^2)
+
+
+insamplemse$tree<-prunedtreemse
+testmse$tree<-prunedtreetestmse
+```
+
+
+##GAM model:
+
+Generalised additive model, odeled using splines of quantitative predictor variables.
+
+
+Modeling gam, considering spline function for some of the variables is not justified as the plots of the spline functions are linear. After removing such variables ( ptratio, age and zn), final model obtained:
+```{r gam model}
+bostongam <- gam(medv ~
+                    s(crim)+s(zn)+s(indus)+chas+s(nox)+s(rm)+s(age)
+                  +s(dis)+rad+s(tax)+s(ptratio)+s(black)+s(lstat),
+                  data = train)
+bostongam1<- gam(medv ~
+                    s(crim)+zn+s(indus)+chas+s(nox)+s(rm)+age
+                  +s(dis)+rad+s(tax)+ptratio+s(black)+s(lstat),
+                  data = train)
+
+par(mfrow = c(1,2))
+plot(bostongam)
+par(mfrow = c(1,1))
+
+
+summary(bostongam1)
+
+insamplemse$gam<-mean((predict(bostongam)-train$medv)^2)
+testmse$gam<-mean((predict(bostongam,test)- test$medv)^2)
+
+insamplemse$gamfinal<-mean((predict(bostongam1)-train$medv)^2)
+testmse$gamfinal<-mean((predict(bostongam1,test)- test$medv)^2)
+
+```
+
+
+##Neaural network:
+
+Neural network parameters:
+.	Hidden layer size - 15
+.	Learning rate - 0.0001
+.	Maximum iterations - 8000
+For the given learning rate and number of maximum iterations, hidden layer size of 15 is obtained by plotting average mean squared error of training set and cross validation set (20% random sample of training data set). 
+
+
+```{r nnet}
+
+x<-Boston[,c('chas', 'rad', 'medv')]
+data<-data.frame(scale(Boston))
+colnames(data)<-colnames(Boston)
+data[,c('chas', 'rad', 'medv')]<-x
+data$chas<-as.factor(data$chas)
+data$rad<-as.factor(data$rad)
+
+
+cvsample<-sample(trainsample, 0.2*length(trainsample))
+
+nnettrain1<-data[trainsample,]
+nnettest<-data[-trainsample,]
+nnettrain<-nnettrain1[-cvsample,]
+nnetcv<- nnettrain1[-as.numeric(row.names(nnettrain)),]
+
+```
+
+```{r, eval = FALSE}
+trainmse<-list()
+cvmse<-list()
+
+trainmse1<-list()
+cvmse1<-list()
+
+i<-1
+
+for (n in seq(1,50,2)){
+for (m in 1:30){
+set.seed(m)
+ 
+cvsample<-sample(trainsample, 0.2*length(trainsample))
+
+nnettrain1<-data[trainsample,]
+nnettest<-data[-trainsample,]
+nnettrain<-nnettrain1[-cvsample,]
+nnetcv<- nnettrain1[-as.numeric(row.names(nnettrain)),]
+
+bostonnnet<-nnet(medv~., size = n, data = nnettrain, linout = TRUE, decay = 0.0001, maxit = 6000, rang = 0.00001)
+
+trainmse1[m]<-mean((predict(bostonnnet) - nnettrain$medv)^2)
+cvmse1[m]<-mean((predict(bostonnnet, nnetcv) - nnetcv$medv)^2)
+}
+
+trainmse[i]<-mean(as.numeric(trainmse1))
+cvmse[i]<-mean(as.numeric(cvmse1))
+
+i<-i+1
+}
+
+
+
+matplot(2*(1:13), cbind(as.numeric(cvmse), as.numeric(trainmse)), pch = 19, col = c("red", "blue"), type = "b", ylab = "Mean Square Error", xlab = 'Number of hidden units')
+legend("topright", legend = c("OOB", "Test"), pch = 19, col = c("red", "blue"))
+
+
+ ```
+
+
+```{r, results = 'hide'}
+
+
+bostonnnetfinal<-nnet(medv~., size = 26, data = nnettrain, linout = TRUE, decay = 0.0001, maxit = 8000, rang = 0.00001)
+
+insamplemse$nnet<-mean((predict(bostonnnetfinal)-nnettrain$medv)^2)
+testmse$nnet<-mean((predict(bostonnnetfinal, nnettest)-nnettest$medv)^2)
+
+a<-as.data.frame(insamplemse)
+b<-as.data.frame(testmse)
+c<-rbind(a,b)
+row.names(c)<-c('train mse', 'test mse')
+
+```
+
+
+  Mean squared error:
+
+```{r}
+c
+```
+  
+### Conclusion:
+.	Neural network with one hidden layer of size 19 and learning rate of 0.0001 seems to perform better both in-sample and out sample
+.	Next to neural network, generalized additive model is slightly better than pruned regression tree(at cp = 0.0071)
+.	Generalized linear model (Gaussian) is the worst performer among all four techniques
+.	Mean squared error reduced considerably from 23 to 1.55 on out of sample data
+
+
+
+
+
+
+
+
+
+
+
